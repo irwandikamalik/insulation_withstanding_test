@@ -1,3 +1,6 @@
+from app.instruments.instrument_definitions import (
+    INSTRUMENT_MODELS,
+)
 from app.database.database_base import DatabaseBase
 
 class ProductConfigurationDatabase(DatabaseBase):
@@ -87,7 +90,7 @@ class ProductConfigurationDatabase(DatabaseBase):
 
     def save_instrument_settings(self, product_model_id, instrument_model, settings):
         valid_keys = {
-            key for key, _ in InstrumentDatabase.INSTRUMENT_MODELS[instrument_model]
+            key for key, _ in INSTRUMENT_MODELS[instrument_model]
         }
         with self.get_connection() as con:
             for key, value in settings.items():
@@ -120,7 +123,7 @@ class ProductConfigurationDatabase(DatabaseBase):
             "history_prefix": model[2],
             "instruments": {}
         }
-        for instrument_model in InstrumentDatabase.INSTRUMENT_MODELS:
+        for instrument_model in INSTRUMENT_MODELS:
             config["instruments"][instrument_model] = (
                 self.get_instrument_settings(product_model_id, instrument_model)
             )

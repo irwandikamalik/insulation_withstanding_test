@@ -1,45 +1,40 @@
-import sys
-from datetime import datetime
+from pathlib import Path
 
-from PySide6.QtCore import Qt, Slot, QThread
-from PySide6.QtGui import ( 
-    QAction, QShortcut, QKeySequence
-)
+from PySide6.QtCore import Slot, QThread
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QGridLayout, QFormLayout, QLabel, QLineEdit, QPushButton,
-    QGroupBox, QSizePolicy, QFrame, QDialog, QDialogButtonBox,
-    QMessageBox, QTableWidget, QTableWidgetItem, QHeaderView,
-    QAbstractItemView, QComboBox, QSpinBox, QInputDialog,QScrollArea,
-    QWidget
+    QMainWindow,
+    QWidget,
+    QVBoxLayout,
+    QMessageBox
 )
 
 from app.database import (
     OperatorDatabase,
     InstrumentDatabase,
     ProductConfigurationDatabase,
-    TestResultDatabase
+    TestResultDatabase,
 )
+
 from app.hardware.instrument_service import InstrumentService
+from app.instruments.instrument_configuration_service import (
+    InstrumentConfigurationService,
+)
 from app.core.test_controller import TestController
+
 from app.ui.dialogs.operator_management_dialog import OperatorManagementDialog
 from app.ui.dialogs.instrument_management_dialog import InstrumentManagementDialog
 from app.ui.dialogs.product_configuration_dialog import ProductTestConfigurationDialog
+from app.ui.dialogs.recent_results_dialog import RecentResultsDialog
 from app.ui.widgets.header_widget import HeaderWidget
 from app.ui.widgets.operator_product_widget import OperatorProductWidget
 from app.ui.widgets.tester_widget import TesterWidget
-from app.ui.dialogs.recent_results_dialog import RecentResultsDialog
-
-# ============================================================
-# CONFIGURATION
-# ============================================================
-
-APP_TITLE = "Insulation & Withstanding Tester"
-
-# Set to True only after implementing and verifying the actual
-# instrument drivers, SCPI commands, interlocks and safety sequence.
-HARDWARE_INTEGRATION_READY = False
-
+from app.config import (
+    APP_TITLE,
+    WINDOW_MIN_WIDTH,
+    WINDOW_MIN_HEIGHT,
+    HARDWARE_INTEGRATION_READY
+)
 
 # ============================================================
 # MAIN WINDOW
@@ -49,29 +44,35 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(APP_TITLE)
-        self.setMinimumSize(1100, 750)
-
+        self.setMinimumSize(
+            WINDOW_MIN_WIDTH,
+            WINDOW_MIN_HEIGHT,
+        )
         self.operator_db = OperatorDatabase()
         self.instrument_db = InstrumentDatabase()
         self.product_config_db = ProductConfigurationDatabase()
         self.result_db = TestResultDatabase()
-        self.instrument_service = InstrumentService(self.instrument_db)
+        self.instrument_configuration_service = (
+            InstrumentConfigurationService(self.instrument_db)
+        )
+
+        self.instrument_service = InstrumentService()
 
         self.test_thread = None
         self.test_worker = None
         self.operator_logged_in = False
 
-        self.mainUI()
-        self.setStyleSheet(self.stylesheet())
-        self.createMenuBar()
+        self.setup_ui()
+        self.load_stylesheet()
+        self.create_menu_bar()
         self.connect_signals()
-        self.showMaximized()
+
 
     # --------------------------------------------------------
     # UI
     # --------------------------------------------------------
 
-    def mainUI(self):
+    def setup_ui(self):
         central = QWidget()
         layout = QVBoxLayout(central)
         layout.setContentsMargins(20, 15, 20, 20)
@@ -113,81 +114,61 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(central)
 
-    def mainInputUI(self):
-        group = QGroupBox("Operator & Product Information")
-        layout = QHBoxLayout(group)
-        layout.setSpacing(15)
-
-        operator_group = QGroupBox("Operator")
-        operator_form = QFormLayout(operator_group)
-
-        self.operatorid_input = QLineEdit()
-        self.operatorname_input = QLineEdit()
-        self.operatorid_input.setPlaceholderText("Scan Operator ID and press Enter")
-        self.operatorname_input.setReadOnly(True)
-        self.operatorname_input.setPlaceholderText("Operator Name")
-        self.logout_button = QPushButton("Logout")
-        self.logout_button.setEnabled(False)
-
-        operator_form.addRow("Operator ID:", self.operatorid_input)
-        operator_form.addRow("Name:", self.operatorname_input)
-        operator_form.addRow(self.logout_button)
-
-        product_group = QGroupBox("Product Barcode")
-        product_form = QFormLayout(product_group)
-
-        self.model_input = QComboBox()
-        self.model_input.addItem("Select Model", None)
-        for product in self.product_config_db.get_product_models():
-            product_id, model_name, _prefix, _enabled = product
-            self.model_input.addItem(model_name, product_id)
-
-        self.historytag_input = QLineEdit()
-        self.doortop_input = QLineEdit()
-        self.doorbot_input = QLineEdit()
-
-        self.historytag_input.setPlaceholderText("Scan History Tag")
-        self.doortop_input.setPlaceholderText("Scan Door Top Barcode")
-        self.doorbot_input.setPlaceholderText("Scan Door Bottom Barcode")
-
-        product_form.addRow("Model:", self.model_input)
-        product_form.addRow("History Tag:", self.historytag_input)
-        product_form.addRow("Door Top:", self.doortop_input)
-        product_form.addRow("Door Bottom:", self.doorbot_input)
-
-        operator_group.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
-        )
-        product_group.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
-        )
-        layout.addWidget(operator_group, 1)
-        layout.addWidget(product_group, 2)
-        group.setMaximumHeight(330)
-        return group
-
-    def createMenuBar(self):
+    def create_menu_bar(self):
         menu = self.menuBar().addMenu("Settings")
 
         operator_action = QAction("Manage Operator List", self)
-        operator_action.triggered.connect(self.openOperatorManagement)
+        operator_action.triggered.connect(
+            self.open_operator_management
+        )
         menu.addAction(operator_action)
 
         menu.addSeparator()
 
         instrument_action = QAction("Manage Instrument", self)
-        instrument_action.triggered.connect(self.openInstrumentManagement)
+        instrument_action.triggered.connect(
+            self.open_instrument_management
+        )
         menu.addAction(instrument_action)
 
-        product_config_action = QAction("Manage Product Test Configuration", self)
-        product_config_action.triggered.connect(self.openProductConfiguration)
+        product_config_action = QAction(
+            "Manage Product Test Configuration", self
+        )
+        product_config_action.triggered.connect(
+            self.open_product_configuration
+        )
         menu.addAction(product_config_action)
 
         menu.addSeparator()
 
         history_action = QAction("Recent Test Results", self)
-        history_action.triggered.connect(self.showRecentResults)
+        history_action.triggered.connect(
+            self.show_recent_results
+        )
         menu.addAction(history_action)
+        
+    def load_stylesheet(self):
+
+        project_dir = Path(__file__).resolve().parents[2]
+
+        stylesheet_path = (
+            project_dir
+            / "app"
+            / "ui"
+            / "styles"
+            / "main_window.qss"
+        )
+
+        try:
+            with open(stylesheet_path, "r", encoding="utf-8") as file:
+                stylesheet = file.read()
+
+            self.setStyleSheet(stylesheet)
+
+        except FileNotFoundError:
+            print(
+                f"WARNING: Stylesheet not found: {stylesheet_path}"
+            )
 
     # --------------------------------------------------------
     # SIGNALS AND INPUT WORKFLOW
@@ -197,7 +178,7 @@ class MainWindow(QMainWindow):
 
         # Operator & Product Widget Signals
         self.input_widget.operator_submitted.connect(
-            self.lookupOperator
+            self.lookup_operator
         )
 
         self.input_widget.logout_requested.connect(
@@ -225,7 +206,7 @@ class MainWindow(QMainWindow):
             self.start_test
         )
 
-    def lookupOperator(self):
+    def lookup_operator(self):
         if self.operator_logged_in:
             return
 
@@ -411,7 +392,10 @@ class MainWindow(QMainWindow):
         self.status_label.setText("●  TESTING")
 
         self.test_thread = QThread(self)
-        self.test_worker = TestController(self.instrument_service)
+        self.test_worker = TestController(
+            self.instrument_configuration_service,
+            self.instrument_service
+        )
         self.test_worker.request.connect(self.test_worker.run)
         self.test_worker.moveToThread(self.test_thread)
 
@@ -473,127 +457,43 @@ class MainWindow(QMainWindow):
     # DIALOGS AND HISTORY
     # --------------------------------------------------------
 
-    def openOperatorManagement(self):
+    def open_operator_management(self):
         dialog = OperatorManagementDialog(self.operator_db, self)
         dialog.exec()
 
-    def openInstrumentManagement(self):
+    def open_instrument_management(self):
         dialog = InstrumentManagementDialog(self.instrument_db, self)
         dialog.exec()
 
-    def openProductConfiguration(self):
-        dialog = ProductTestConfigurationDialog(self.product_config_db, self)
+    def open_product_configuration(self):
+        dialog = ProductTestConfigurationDialog(
+            self.product_config_db, self
+        )
         dialog.exec()
+
         current_id = self.model_input.currentData()
+
         self.model_input.blockSignals(True)
         self.model_input.clear()
         self.model_input.addItem("Select Model", None)
+
         for product in self.product_config_db.get_product_models():
             product_id, model_name, _prefix, _enabled = product
             self.model_input.addItem(model_name, product_id)
+
         restored_index = self.model_input.findData(current_id)
-        self.model_input.setCurrentIndex(restored_index if restored_index >= 0 else 0)
+        self.model_input.setCurrentIndex(
+            restored_index if restored_index >= 0 else 0
+        )
+
         self.model_input.blockSignals(False)
         self.update_start_button()
 
-    def showRecentResults(self):
-
+    def show_recent_results(self):
         rows = self.result_db.get_recent_results()
 
-        dialog = RecentResultsDialog(
-            rows,
-            self
-        )
-
+        dialog = RecentResultsDialog(rows, self)
         dialog.exec()
-
-        
-    # --------------------------------------------------------
-    # STYLESHEET
-    # --------------------------------------------------------
-
-    def stylesheet(self):
-        return """
-        QMainWindow { background-color: #EAF0F8; }
-        QWidget {
-            font-family: "Segoe UI";
-            font-size: 14px;
-            color: #172B4D;
-        }
-        QFrame#header {
-            background-color: #123B68;
-            border-radius: 12px;
-        }
-        QLabel#headerTitle {
-            color: white;
-            font-size: 30px;
-            font-weight: bold;
-        }
-        QLabel#statusLabel {
-            color: #4ADE80;
-            font-size: 18px;
-            font-weight: bold;
-        }
-        QGroupBox {
-            background-color: #FFFFFF;
-            border: 2px solid #C6D4E5;
-            border-radius: 10px;
-            margin-top: 22px;
-            padding: 15px;
-            font-size: 16px;
-            font-weight: bold;
-        }
-        QGroupBox::title {
-            subcontrol-origin: margin;
-            subcontrol-position: top left;
-            left: 15px;
-            padding: 0 8px;
-            color: #174A7E;
-        }
-        QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {
-            background-color: #F8FAFD;
-            border: 2px solid #C5D3E4;
-            border-radius: 6px;
-            padding: 7px 9px;
-            min-height: 27px;
-            font-size: 15px;
-        }
-        QLineEdit:focus, QComboBox:focus {
-            border: 2px solid #2588D8;
-            background-color: white;
-        }
-        QLineEdit:read-only { background-color: #E8EDF4; color: #64748B; }
-        QLabel#digitalValue {
-            background-color: #142F49;
-            color: #A8F5B7;
-            border: 2px solid #36536C;
-            border-radius: 8px;
-            font-family: "Consolas";
-            font-size: 28px;
-            font-weight: bold;
-        }
-        QGroupBox#insulationGroup { border: 2px solid #16A36A; }
-        QGroupBox#insulationGroup::title { color: #07864E; }
-        QGroupBox#withstandingGroup { border: 2px solid #5540B8; }
-        QGroupBox#withstandingGroup::title { color: #5540B8; }
-        QPushButton {
-            background-color: #315B82;
-            border: none;
-            border-radius: 8px;
-            color: white;
-            padding: 9px 16px;
-            font-size: 15px;
-            font-weight: bold;
-        }
-        QPushButton:hover { background-color: #24496D; }
-        QPushButton:disabled { background-color: #AAB7C4; color: #E9EEF3; }
-        QPushButton#startButton {
-            background-color: #119B5D;
-            font-size: 23px;
-        }
-        QPushButton#startButton:hover { background-color: #0D7F4B; }
-        QPushButton#startButton:disabled { background-color: #AAB7C4; }
-        """
 
     def closeEvent(self, event):
         if self.test_thread and self.test_thread.isRunning():
@@ -604,13 +504,3 @@ class MainWindow(QMainWindow):
             event.ignore()
             return
         event.accept()
-
-
-# ============================================================
-# APPLICATION ENTRY POINT
-# ============================================================
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    window = MainWindow()
-    sys.exit(app.exec())

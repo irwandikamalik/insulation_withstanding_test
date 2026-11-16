@@ -1,0 +1,126 @@
+
+QMainWindow {
+    background-color: #EAF0F8;
+}
+
+QWidget {
+    font-family: "Segoe UI";
+    font-size: 14px;
+    color: #172B4D;
+}
+
+QFrame#header {
+    background-color: #123B68;
+    border-radius: 12px;
+}
+
+QLabel#headerTitle {
+    color: white;
+    font-size: 30px;
+    font-weight: bold;
+}
+
+QLabel#statusLabel {
+    color: #4ADE80;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+QGroupBox {
+    background-color: #FFFFFF;
+    border: 2px solid #C6D4E5;
+    border-radius: 10px;
+    margin-top: 22px;
+    padding: 15px;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    left: 15px;
+    padding: 0 8px;
+    color: #174A7E;
+}
+
+QLineEdit,
+QComboBox,
+QSpinBox,
+QDoubleSpinBox {
+    background-color: #F8FAFD;
+    border: 2px solid #C5D3E4;
+    border-radius: 6px;
+    padding: 7px 9px;
+    min-height: 27px;
+    font-size: 15px;
+}
+
+QLineEdit:focus,
+QComboBox:focus {
+    border: 2px solid #2588D8;
+    background-color: white;
+}
+
+QLineEdit:read-only {
+    background-color: #E8EDF4;
+    color: #64748B;
+}
+
+QLabel#digitalValue {
+    background-color: #142F49;
+    color: #A8F5B7;
+    border: 2px solid #36536C;
+    border-radius: 8px;
+    font-family: "Consolas";
+    font-size: 28px;
+    font-weight: bold;
+}
+
+QGroupBox#insulationGroup {
+    border: 2px solid #16A36A;
+}
+
+QGroupBox#insulationGroup::title {
+    color: #07864E;
+}
+
+QGroupBox#withstandingGroup {
+    border: 2px solid #5540B8;
+}
+
+QGroupBox#withstandingGroup::title {
+    color: #5540B8;
+}
+
+QPushButton {
+    background-color: #315B82;
+    border: none;
+    border-radius: 8px;
+    color: white;
+    padding: 9px 16px;
+    font-size: 15px;
+    font-weight: bold;
+}
+
+QPushButton:hover {
+    background-color: #24496D;
+}
+
+QPushButton:disabled {
+    background-color: #AAB7C4;
+    color: #E9EEF3;
+}
+
+QPushButton#startButton {
+    background-color: #119B5D;
+    font-size: 23px;
+}
+
+QPushButton#startButton:hover {
+    background-color: #0D7F4B;
+}
+
+QPushButton#startButton:disabled {
+    background-color: #AAB7C4;
+}

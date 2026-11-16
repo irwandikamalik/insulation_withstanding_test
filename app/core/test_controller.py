@@ -12,8 +12,17 @@ class TestController(QObject):
     completed = Signal(dict)
     failed = Signal(str)
 
-    def __init__(self, instrument_service):
+    def __init__(
+        self,
+        instrument_configuration_service,
+        instrument_service
+    ):
         super().__init__()
+
+        self.instrument_configuration_service = (
+            instrument_configuration_service
+        )
+
         self.instrument_service = instrument_service
 
     @Slot(dict)
@@ -42,7 +51,7 @@ class TestController(QObject):
 
             product_configuration = result["product_configuration"]
 
-            self.instrument_service.validate_configuration(
+            self.instrument_configuration_service.validate_configuration(
                 product_configuration
             )
 

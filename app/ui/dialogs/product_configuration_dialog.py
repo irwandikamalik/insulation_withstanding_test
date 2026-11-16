@@ -18,6 +18,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.instruments.instrument_definitions import (
+    INSTRUMENT_MODELS,
+)
 from app.database import InstrumentDatabase
 
 
@@ -67,7 +70,7 @@ class ProductTestConfigurationDialog(QDialog):
         instrument_row.addWidget(QLabel("Instrument:"))
         self.instrument_combo = QComboBox()
         self.instrument_combo.addItems(
-            InstrumentDatabase.INSTRUMENT_MODELS.keys()
+            INSTRUMENT_MODELS.keys()
         )
         instrument_row.addWidget(self.instrument_combo, 1)
         setting_layout.addLayout(instrument_row)
@@ -174,7 +177,7 @@ class ProductTestConfigurationDialog(QDialog):
             self.settings_form.removeRow(0)
         self.setting_inputs.clear()
         instrument_model = self.instrument_combo.currentText()
-        fields = InstrumentDatabase.INSTRUMENT_MODELS[instrument_model]
+        fields = INSTRUMENT_MODELS[instrument_model]
         for key, label in fields:
             edit = QLineEdit()
             edit.setPlaceholderText(f"Enter {label} for this product")
