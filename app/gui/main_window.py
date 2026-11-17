@@ -35,6 +35,7 @@ from app.config import (
     WINDOW_MIN_HEIGHT,
     HARDWARE_INTEGRATION_READY
 )
+from app.workflows.test_sequence import build_test_sequence
 
 # ============================================================
 # MAIN WINDOW
@@ -58,6 +59,11 @@ class MainWindow(QMainWindow):
 
         self.instrument_service = InstrumentService()
 
+        self.test_sequence = build_test_sequence(
+            self.instrument_configuration_service,
+            self.instrument_service
+        )
+
         self.test_thread = None
         self.test_worker = None
         self.operator_logged_in = False
@@ -80,7 +86,7 @@ class MainWindow(QMainWindow):
 
         self.header_widget = HeaderWidget()
         self.status_label = self.header_widget.status_label
-        layout.addWidget(self.header_widget)
+        layout.addWidget(self.header_widget, 0)
 
         self.input_widget = OperatorProductWidget(
             self.product_config_db
@@ -97,7 +103,8 @@ class MainWindow(QMainWindow):
         self.doortop_input = self.input_widget.doortop_input
         self.doorbot_input = self.input_widget.doorbot_input
 
-        layout.addWidget(self.input_widget)
+        self.input_widget.setMaximumHeight(800)
+        layout.addWidget(self.input_widget, 0)
 
 
 
@@ -106,10 +113,16 @@ class MainWindow(QMainWindow):
             self.tester_widget.insulation_values
         )
 
+        self.tester_widget.set_sequence(
+            self.test_sequence
+        )
+
         self.withstanding_values = (
             self.tester_widget.withstanding_values
         )
+
         self.start_button = self.tester_widget.start_button
+
         layout.addWidget(self.tester_widget, 1)
 
         self.setCentralWidget(central)
@@ -387,26 +400,76 @@ class MainWindow(QMainWindow):
         }
         self.start_test_worker(test_data)
 
+
     def start_test_worker(self, test_data):
+
         self.start_button.setEnabled(False)
         self.status_label.setText("●  TESTING")
 
+        # Reset sequence display
+        self.tester_widget.reset_sequence()
+
         self.test_thread = QThread(self)
+
         self.test_worker = TestController(
             self.instrument_configuration_service,
-            self.instrument_service
+            self.instrument_service,
+            sequence=self.test_sequence
         )
-        self.test_worker.request.connect(self.test_worker.run)
-        self.test_worker.moveToThread(self.test_thread)
 
-        self.test_worker.progress.connect(self.on_test_progress)
-        self.test_worker.completed.connect(self.on_test_completed)
-        self.test_worker.completed.connect(self.test_thread.quit)
-        self.test_worker.completed.connect(self.test_worker.deleteLater)
-        self.test_thread.finished.connect(self.test_thread.deleteLater)
-        self.test_thread.finished.connect(self.on_test_thread_finished)
+        self.test_worker.request.connect(
+            self.test_worker.run
+        )
+
+        self.test_worker.moveToThread(
+            self.test_thread
+        )
+
+        # Progress message
+        self.test_worker.progress.connect(
+            self.on_test_progress
+        )
+
+        # Individual step status
+        self.test_worker.step_status.connect(
+            self.on_test_step_status
+        )
+
+        # Test completion
+        self.test_worker.completed.connect(
+            self.on_test_completed
+        )
+
+        self.test_worker.completed.connect(
+            self.test_thread.quit
+        )
+
+        self.test_worker.completed.connect(
+            self.test_worker.deleteLater
+        )
+
+        self.test_thread.finished.connect(
+            self.test_thread.deleteLater
+        )
+
+        self.test_thread.finished.connect(
+            self.on_test_thread_finished
+        )
+
         self.test_thread.start()
-        self.test_worker.request.emit(test_data)
+
+        self.test_worker.request.emit(
+            test_data
+        )
+
+    @Slot(str, str)
+    def on_test_step_status(self, step_id, status):
+
+        self.tester_widget.update_step_status(
+            step_id,
+            status
+        )
+
 
     @Slot(str)
     def on_test_progress(self, message):
